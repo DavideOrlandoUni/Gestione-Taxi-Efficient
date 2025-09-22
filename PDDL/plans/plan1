@@ -1,0 +1,5 @@
+(move taxi1 st l1)
+(pickup taxi1 p1 l1)
+(move taxi1 l1 st)
+(dropoff taxi1 p1 st)
+; cost = 4 (unit cost)

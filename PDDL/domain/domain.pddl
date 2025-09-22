@@ -1,0 +1,25 @@
+(define (domain taxi-planner)
+  (:requirements :strips :typing)
+  (:types taxi passenger location)
+  (:predicates
+    (at ?v - taxi ?l - location)
+    (passenger-at ?p - passenger ?l - location)
+    (in-taxi ?p - passenger ?v - taxi)
+    (station ?l - location)
+  )
+  (:action move
+    :parameters (?v - taxi ?from - location ?to - location)
+    :precondition (at ?v ?from)
+    :effect (and (not (at ?v ?from)) (at ?v ?to))
+  )
+  (:action pickup
+    :parameters (?v - taxi ?p - passenger ?l - location)
+    :precondition (and (at ?v ?l) (passenger-at ?p ?l))
+    :effect (and (not (passenger-at ?p ?l)) (in-taxi ?p ?v))
+  )
+  (:action dropoff
+    :parameters (?v - taxi ?p - passenger ?l - location)
+    :precondition (and (at ?v ?l) (in-taxi ?p ?v) (station ?l))
+    :effect (and (not (in-taxi ?p ?v)) (passenger-at ?p ?l))
+  )
+)

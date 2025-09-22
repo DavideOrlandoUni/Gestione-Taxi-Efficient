@@ -1,0 +1,28 @@
+﻿# Python cache & build
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+build/
+dist/
+.mypy_cache/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# Env
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Progetto Taxi
+downward/
+output.sas
+*.plan
+*.log

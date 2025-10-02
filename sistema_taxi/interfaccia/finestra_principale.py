@@ -518,13 +518,17 @@ class FinestraPrincipale:
         Args:
             etichetta_cliente (str): Etichetta del cliente consegnato
         """
-        if etichetta_cliente in self.percorsi_completati:
-            self.percorsi_completati[etichetta_cliente]['completato'] = True
-            self.clienti_consegnati.add(etichetta_cliente)
-            
-            # Disegna il percorso completo in grigio
-            self._disegna_percorso_completato(etichetta_cliente)
-            print(f"[INFO] Cliente {etichetta_cliente} consegnato - percorso completo disegnato in grigio")
+        try:
+            if etichetta_cliente in self.percorsi_completati:
+                self.percorsi_completati[etichetta_cliente]['completato'] = True
+                self.clienti_consegnati.add(etichetta_cliente)
+                
+                # Disegna il percorso completo in grigio
+                self._disegna_percorso_completato(etichetta_cliente)
+                print(f"[INFO] Cliente {etichetta_cliente} consegnato - percorso completo disegnato in grigio")
+        except Exception as e:
+            print(f"[WARNING] Errore durante completamento tracciamento per {etichetta_cliente}: {e}")
+            # Continua l'animazione anche in caso di errore
     
     def _disegna_percorso_completato(self, etichetta_cliente):
         """
@@ -533,19 +537,23 @@ class FinestraPrincipale:
         Args:
             etichetta_cliente (str): Etichetta del cliente
         """
-        if etichetta_cliente not in self.percorsi_completati:
-            return
-        
-        dati_percorso = self.percorsi_completati[etichetta_cliente]
-        percorso_completo = dati_percorso['percorso_verso_cliente'] + dati_percorso['percorso_verso_stazione'][1:]  # Evita duplicazione del punto di prelievo
-        
-        # Disegna il percorso completo in grigio
-        self._disegna_traccia_percorso(
-            percorso_completo, 
-            len(percorso_completo) - 1, 
-            COLORI['traccia_completata'], 
-            f"completato_{etichetta_cliente}"
-        )
+        try:
+            if etichetta_cliente not in self.percorsi_completati:
+                return
+            
+            dati_percorso = self.percorsi_completati[etichetta_cliente]
+            percorso_completo = dati_percorso['percorso_verso_cliente'] + dati_percorso['percorso_verso_stazione'][1:]  # Evita duplicazione del punto di prelievo
+            
+            # Disegna il percorso completo in grigio
+            self._disegna_traccia_percorso(
+                percorso_completo, 
+                len(percorso_completo) - 1, 
+                COLORI['traccia_completata'], 
+                f"completato_{etichetta_cliente}"
+            )
+        except Exception as e:
+            print(f"[WARNING] Errore durante disegno percorso completato per {etichetta_cliente}: {e}")
+            # Continua l'animazione anche in caso di errore
     
     def _disegna_traccia_percorso(self, percorso, fino_a_indice, colore_traccia=None, nome_taxi=None):
         """
@@ -631,23 +639,27 @@ class FinestraPrincipale:
     
     def _avanza_step_animazione(self):
         """Avanza di un step nell'animazione."""
-        # Modalità multi-taxi
-        if self.piano_multi_taxi:
-            movimento_effettuato = self._avanza_multi_taxi()
-            if not movimento_effettuato:
-                self.stato_animazione.attiva = False
-                self.pulsante_play.config(text="▶ Play")
-                print("[INFO] Animazione completata (multi-taxi)")
-            return
-        
-        # Modalità taxi singolo
-        if self.piano_viaggio_singolo:
-            if self._avanza_taxi_singolo():
+        try:
+            # Modalità multi-taxi
+            if self.piano_multi_taxi:
+                movimento_effettuato = self._avanza_multi_taxi()
+                if not movimento_effettuato:
+                    self.stato_animazione.attiva = False
+                    self.pulsante_play.config(text="▶ Play")
+                    print("[INFO] Animazione completata (multi-taxi)")
                 return
-            else:
-                self.stato_animazione.attiva = False
-                self.pulsante_play.config(text="▶ Play")
-                print("[INFO] Animazione completata")
+            
+            # Modalità taxi singolo
+            if self.piano_viaggio_singolo:
+                if self._avanza_taxi_singolo():
+                    return
+                else:
+                    self.stato_animazione.attiva = False
+                    self.pulsante_play.config(text="▶ Play")
+                    print("[INFO] Animazione completata")
+        except Exception as e:
+            print(f"[WARNING] Errore durante step animazione: {e}")
+            # Continua l'animazione anche in caso di errore
     
     def _avanza_multi_taxi(self):
         """Avanza l'animazione per il sistema multi-taxi."""
@@ -758,14 +770,18 @@ class FinestraPrincipale:
             piano: Piano del taxi (PianoViaggio o PianoTaxi)
             indice (int): Indice corrente nel percorso
         """
-        if not hasattr(piano, 'eventi_prelievo') or indice not in piano.eventi_prelievo:
-            return
-        
-        # Marca tutti i clienti prelevati a questo step
-        for cliente in piano.eventi_prelievo[indice]:
-            self._marca_cliente_prelevato(cliente)
-            # Inizia a tracciare il percorso per questo cliente
-            self._inizia_tracciamento_percorso(cliente, piano.percorso, indice)
+        try:
+            if not hasattr(piano, 'eventi_prelievo') or indice not in piano.eventi_prelievo:
+                return
+            
+            # Marca tutti i clienti prelevati a questo step
+            for cliente in piano.eventi_prelievo[indice]:
+                self._marca_cliente_prelevato(cliente)
+                # Inizia a tracciare il percorso per questo cliente
+                self._inizia_tracciamento_percorso(cliente, piano.percorso, indice)
+        except Exception as e:
+            print(f"[WARNING] Errore durante gestione eventi prelievo: {e}")
+            # Continua l'animazione anche in caso di errore
     
     def _gestisci_eventi_consegna(self, piano, indice):
         """
@@ -775,13 +791,17 @@ class FinestraPrincipale:
             piano: Piano del taxi (PianoViaggio o PianoTaxi)
             indice (int): Indice corrente nel percorso
         """
-        # Verifica se siamo alla stazione e ci sono clienti a bordo da consegnare
-        if indice < len(piano.percorso) and piano.percorso[indice] == STAZIONE:
-            # Trova i clienti che devono essere consegnati
-            clienti_a_bordo = self._calcola_clienti_a_bordo(piano, indice - 1)
-            for cliente in clienti_a_bordo:
-                if cliente in self.clienti_prelevati and cliente not in self.clienti_consegnati:
-                    self._completa_tracciamento_percorso(cliente)
+        try:
+            # Verifica se siamo alla stazione e ci sono clienti a bordo da consegnare
+            if indice < len(piano.percorso) and piano.percorso[indice] == STAZIONE:
+                # Trova i clienti che devono essere consegnati
+                clienti_a_bordo = self._calcola_clienti_a_bordo(piano, indice - 1)
+                for cliente in clienti_a_bordo:
+                    if cliente in self.clienti_prelevati and cliente not in self.clienti_consegnati:
+                        self._completa_tracciamento_percorso(cliente)
+        except Exception as e:
+            print(f"[WARNING] Errore durante gestione eventi consegna: {e}")
+            # Continua l'animazione anche in caso di errore
     
     def _aggiorna_tracciamenti_percorsi(self, piano, indice):
         """

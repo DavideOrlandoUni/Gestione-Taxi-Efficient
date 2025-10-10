@@ -1,9 +1,3 @@
-"""
-Modulo Configurazione
-====================
-
-Contiene tutte le costanti, configurazioni e modelli dati del sistema.
-"""
-
+# Modulo configurazione sistema taxi
 from .costanti import *
 from .modelli import *

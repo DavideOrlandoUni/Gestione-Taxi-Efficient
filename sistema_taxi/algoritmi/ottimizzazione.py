@@ -1,302 +1,136 @@
-"""
-Algoritmi di Ottimizzazione
-===========================
+# Algoritmo di ottimizzazione greedy per accoppiamento clienti
+from .ricerca_percorso import distanza_manhattan
+from ..configurazione.costanti import STAZIONE, RAGGIO_ACCOPPIAMENTO_DEFAULT
 
-Implementa algoritmi per l'ottimizzazione dei percorsi taxi:
-- Accoppiamento clienti per raggio Manhattan
-- Selezione greedy delle coppie ottimali
-- Ottimizzazione ordine di visita clienti
-"""
-
-from .ricerca_percorso import calcola_distanza_manhattan
-from ..configurazione.costanti import STAZIONE, DEBUG, RAGGIO_ACCOPPIAMENTO_DEFAULT
-
-
-def trova_coppie_clienti_per_raggio(etichette_clienti, raggio_massimo=RAGGIO_ACCOPPIAMENTO_DEFAULT):
-    """
-    Trova coppie di clienti entro un raggio Manhattan specificato.
+def trova_coppie_clienti(clienti, raggio_max=RAGGIO_ACCOPPIAMENTO_DEFAULT):
+    # ALGORITMO GREEDY ACCOPPIAMENTO: trova coppie ottimali per taxi condivisi
+    # Obiettivo: massimizzare efficienza raggruppando clienti vicini
+    lista_clienti = sorted(clienti.keys())  # Ordine deterministico
     
-    Utilizza un algoritmo greedy che seleziona le coppie con distanza minore
-    evitando conflitti (un cliente può appartenere a una sola coppia).
-    Le coppie sono ordinate per:
-    1. Distanza tra i clienti (crescente)
-    2. Distanza totale dalla stazione (crescente)
-    3. Ordine alfabetico (per determinismo)
+    # FASE 1: Trova tutte le coppie possibili entro il raggio
+    coppie_possibili = trova_coppie_vicine(clienti, lista_clienti, raggio_max)
     
-    Args:
-        etichette_clienti (dict): Mappa {etichetta_cliente: posizione}
-        raggio_massimo (int): Distanza Manhattan massima per formare una coppia
+    # FASE 2: Ordina per priorità (distanza + vicinanza stazione)
+    coppie_ordinate = ordina_per_priorita(coppie_possibili, clienti)
     
-    Returns:
-        tuple: (lista_coppie, lista_clienti_singoli)
-            - lista_coppie: Lista di tuple (cliente_a, cliente_b)
-            - lista_clienti_singoli: Lista di clienti senza coppia
+    # FASE 3: SCELTA GREEDY - prendi sempre la migliore disponibile
+    coppie_finali, clienti_usati = seleziona_greedy(coppie_ordinate)
     
-    Example:
-        >>> clienti = {'A': (1, 1), 'B': (1, 2), 'C': (5, 5)}
-        >>> coppie, singoli = trova_coppie_clienti_per_raggio(clienti, 2)
-        >>> print(coppie)  # [('A', 'B')]
-        >>> print(singoli)  # ['C']
-    """
-    etichette_ordinate = sorted(etichette_clienti.keys())
-    
-    # Trova tutte le coppie candidate entro il raggio
-    coppie_candidate = _trova_coppie_candidate(etichette_clienti, etichette_ordinate, raggio_massimo)
-    
-    # Ordina le coppie per priorità
-    coppie_candidate = _ordina_coppie_per_priorita(coppie_candidate, etichette_clienti)
-    
-    # Selezione greedy delle coppie (evita conflitti)
-    coppie_selezionate, clienti_utilizzati = _seleziona_coppie_greedy(coppie_candidate)
-    
-    # Clienti rimasti senza coppia
-    
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#ATTENZIONE, SEMPLIFICARE 
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # RISULTATO: clienti rimasti senza coppia (andranno su taxi singoli)
     clienti_singoli = sorted([
-        cliente for cliente in etichette_ordinate 
-        if cliente not in clienti_utilizzati
+        cliente for cliente in lista_clienti 
+        if cliente not in clienti_usati  # Non ancora accoppiati
     ])
     
-    if DEBUG:
-        print(f"[DEBUG] Accoppiamento clienti:")
-        print(f"        Raggio Manhattan ≤ {raggio_massimo}")
-        print(f"        Coppie trovate: {coppie_selezionate}")
-        print(f"        Clienti singoli: {clienti_singoli}")
-    
-    return coppie_selezionate, clienti_singoli
+    return coppie_finali, clienti_singoli
 
 
-def _trova_coppie_candidate(etichette_clienti, etichette_ordinate, raggio_massimo):
-    """
-    Trova tutte le coppie di clienti entro il raggio specificato.
+def trova_coppie_vicine(clienti, lista_clienti, raggio_max):
+    # Trova tutte le coppie di clienti entro il raggio
+    coppie_vicine = []
     
-    Args:
-        etichette_clienti (dict): Posizioni dei clienti
-        etichette_ordinate (list): Lista ordinata delle etichette
-        raggio_massimo (int): Raggio massimo per l'accoppiamento
-    
-    Returns:
-        list: Lista di tuple (distanza, cliente_a, cliente_b)
-    """
-    coppie_candidate = []
-    
-    for i in range(len(etichette_ordinate)):
-        for j in range(i + 1, len(etichette_ordinate)):
-            cliente_a = etichette_ordinate[i]
-            cliente_b = etichette_ordinate[j]
+    for i in range(len(lista_clienti)):
+        for j in range(i + 1, len(lista_clienti)):
+            cliente1 = lista_clienti[i]
+            cliente2 = lista_clienti[j]
             
-            distanza = calcola_distanza_manhattan(
-                etichette_clienti[cliente_a], 
-                etichette_clienti[cliente_b]
+            dist = distanza_manhattan(
+                clienti[cliente1], 
+                clienti[cliente2]
             )
             
-            if distanza <= raggio_massimo:
-                coppie_candidate.append((distanza, cliente_a, cliente_b))
+            if dist <= raggio_max:
+                coppie_vicine.append((dist, cliente1, cliente2))
     
-    return coppie_candidate
+    return coppie_vicine
 
 
-
-
-
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#ATTENZIONE, SEMPLIFICARE FUNZIONE DENTRO FUNZIONE
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
-def _ordina_coppie_per_priorita(coppie_candidate, etichette_clienti):
-    """
-    Ordina le coppie candidate per priorità di selezione.
-    
-    Criteri di ordinamento:
-    1. Distanza tra i clienti (crescente)
-    2. Distanza totale dalla stazione (crescente)  
-    3. Ordine alfabetico (per determinismo)
-    
-    Args:
-        coppie_candidate (list): Lista di coppie candidate
-        etichette_clienti (dict): Posizioni dei clienti
-    
-    Returns:
-        list: Lista ordinata di coppie candidate
-    """
-    def chiave_ordinamento(coppia):
-        distanza, cliente_a, cliente_b = coppia
+def ordina_per_priorita(coppie_vicine, clienti):
+    # Ordina coppie per distanza e vicinanza alla stazione
+    coppie_con_punteggio = []
+    for coppia in coppie_vicine:
+        dist, cliente1, cliente2 = coppia
         
-        # Distanza totale dalla stazione
-        distanza_stazione_a = calcola_distanza_manhattan(etichette_clienti[cliente_a], STAZIONE)
-        distanza_stazione_b = calcola_distanza_manhattan(etichette_clienti[cliente_b], STAZIONE)
-        distanza_totale_stazione = distanza_stazione_a + distanza_stazione_b
+        dist_stazione1 = distanza_manhattan(clienti[cliente1], STAZIONE)
+        dist_stazione2 = distanza_manhattan(clienti[cliente2], STAZIONE)
+        dist_totale = dist_stazione1 + dist_stazione2
         
-        return (distanza, distanza_totale_stazione, cliente_a, cliente_b)
+        punteggio = (dist, dist_totale, cliente1, cliente2)
+        coppie_con_punteggio.append((punteggio, coppia))
     
-    return sorted(coppie_candidate, key=chiave_ordinamento)
+    coppie_con_punteggio.sort()
+    
+    coppie_ordinate = []
+    for punteggio, coppia in coppie_con_punteggio:
+        coppie_ordinate.append(coppia)
+    
+    return coppie_ordinate
 
 
-def _seleziona_coppie_greedy(coppie_candidate):
-    """
-    Seleziona le coppie usando strategia greedy evitando conflitti.
+def seleziona_greedy(coppie_ordinate):
+    # CORE ALGORITMO GREEDY: scelta miope ma efficace
+    # Strategia: prendi sempre la prima coppia disponibile (localmente ottima)
+    clienti_usati = set()  # Traccia clienti già assegnati
+    coppie_scelte = []     # Coppie selezionate per taxi condivisi
     
-    Args:
-        coppie_candidate (list): Lista ordinata di coppie candidate
+    # Scorri coppie in ordine di priorità (migliori prima)
+    for _, cliente1, cliente2 in coppie_ordinate:
+        # DECISIONE GREEDY: se entrambi liberi, prendili subito!
+        # Non considera combinazioni future - scelta immediata
+        if cliente1 not in clienti_usati and cliente2 not in clienti_usati:
+            coppie_scelte.append((cliente1, cliente2))  # Accoppia
+            clienti_usati.add(cliente1)  # Marca come usato
+            clienti_usati.add(cliente2)  # Marca come usato
+            # Nota: questa scelta è irreversibile (caratteristica greedy)
     
-    Returns:
-        tuple: (coppie_selezionate, clienti_utilizzati)
-    """
-    clienti_utilizzati = set()
-    coppie_selezionate = []
-    
-    for _, cliente_a, cliente_b in coppie_candidate:
-        if cliente_a not in clienti_utilizzati and cliente_b not in clienti_utilizzati:
-            coppie_selezionate.append((cliente_a, cliente_b))
-            clienti_utilizzati.add(cliente_a)
-            clienti_utilizzati.add(cliente_b)
-    
-    return coppie_selezionate, clienti_utilizzati
+    return coppie_scelte, clienti_usati
 
 
-def stampa_debug_coppie_candidate(etichette_clienti, raggio):
-    """
-    Stampa informazioni di debug sulle coppie candidate.
+def ordina_visita_greedy(clienti, posizioni, partenza=STAZIONE):
+    # ALGORITMO GREEDY NEAREST NEIGHBOR: visita sempre il più vicino
+    # Problema: Traveling Salesman semplificato
+    # Strategia: scelta miope ma veloce O(n²)
+    if not clienti:
+        return []  # Nessun cliente da visitare
     
-    Utile per analizzare il processo di accoppiamento e debug.
+    clienti_da_visitare = set(clienti)  # Clienti ancora da servire
+    ordine = []           # Sequenza ottimizzata di visite
+    pos_attuale = partenza  # Posizione corrente del taxi
     
-    Args:
-        etichette_clienti (dict): Posizioni dei clienti
-        raggio (int): Raggio massimo per le coppie
-    """
-    if not DEBUG:
-        return
-    
-    candidate = []
-    etichette = sorted(etichette_clienti.keys())
-    
-    for i in range(len(etichette)):
-        for j in range(i + 1, len(etichette)):
-            cliente_a, cliente_b = etichette[i], etichette[j]
-            distanza = calcola_distanza_manhattan(
-                etichette_clienti[cliente_a], 
-                etichette_clienti[cliente_b]
-            )
-            
-            if distanza <= raggio:
-                candidate.append((distanza, cliente_a, cliente_b))
-    
-    candidate.sort()
-    print(f"[DEBUG] Coppie candidate (Manhattan ≤ {raggio}): {candidate}")
-
-
-def ottimizza_ordine_visita_clienti(lista_clienti, posizioni_clienti, posizione_partenza=STAZIONE):
-    """
-    Ottimizza l'ordine di visita dei clienti usando strategia greedy.
-    
-    Seleziona iterativamente il cliente più vicino alla posizione corrente.
-    Questo è un'approssimazione del problema del commesso viaggiatore (TSP).
-    
-    Args:
-        lista_clienti (list): Lista delle etichette dei clienti
-        posizioni_clienti (dict): Posizioni dei clienti
-        posizione_partenza (tuple): Posizione di partenza (default: stazione)
-    
-    Returns:
-        list: Lista ordinata dei clienti da visitare
-    
-    Example:
-        >>> clienti = ['A', 'B', 'C']
-        >>> posizioni = {'A': (1, 1), 'B': (5, 5), 'C': (2, 1)}
-        >>> ordine = ottimizza_ordine_visita_clienti(clienti, posizioni)
-        >>> print(ordine)  # ['A', 'C', 'B'] (ordine ottimizzato)
-    """
-    if not lista_clienti:
-        return []
-    
-    clienti_rimanenti = set(lista_clienti)
-    ordine_visita = []
-    posizione_corrente = posizione_partenza
-    
-
-    
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#ATTENZIONE, SEMPLIFICARE FUNZIONE DENTRO FUNZIONE
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    while clienti_rimanenti:
-        # Trova il cliente più vicino alla posizione corrente
-        cliente_piu_vicino = min(
-            clienti_rimanenti,
-            key=lambda c: calcola_distanza_manhattan(posizione_corrente, posizioni_clienti[c])
-        )
+    # CICLO GREEDY: finché ci sono clienti da visitare
+    while clienti_da_visitare:
+        cliente_vicino = None      # Candidato migliore
+        dist_min = float('inf')   # Distanza minima trovata
         
-        # Aggiungi all'ordine e rimuovi dai rimanenti
-        ordine_visita.append(cliente_piu_vicino)
-        clienti_rimanenti.remove(cliente_piu_vicino)
-        posizione_corrente = posizioni_clienti[cliente_piu_vicino]
+        # RICERCA LOCALE: trova il cliente più vicino alla posizione attuale
+        for cliente in clienti_da_visitare:
+            dist = distanza_manhattan(pos_attuale, posizioni[cliente])
+            if dist < dist_min:  # Trovato uno più vicino
+                dist_min = dist
+                cliente_vicino = cliente
+        
+        # SCELTA GREEDY: prendi il più vicino (decisione irreversibile)
+        ordine.append(cliente_vicino)
+        clienti_da_visitare.remove(cliente_vicino)
+        pos_attuale = posizioni[cliente_vicino]  # Aggiorna posizione
+        
+        # Nota: non considera l'impatto globale, solo beneficio immediato
     
-    return ordine_visita
+    return ordine  # Sequenza di visite ottimizzata localmente
 
 
-def calcola_costo_totale_percorso(lista_clienti, posizioni_clienti, posizione_base=STAZIONE):
-    """
-    Calcola il costo totale per visitare tutti i clienti e tornare alla base.
-    
-    Args:
-        lista_clienti (list): Lista ordinata dei clienti da visitare
-        posizioni_clienti (dict): Posizioni dei clienti
-        posizione_base (tuple): Posizione base (partenza e arrivo)
-    
-    Returns:
-        int: Costo totale del percorso (numero di step)
-    """
-    if not lista_clienti:
-        return 0
-    
-    costo_totale = 0
-    posizione_corrente = posizione_base
-    
-    # Costo per visitare ogni cliente
-    for cliente in lista_clienti:
-        posizione_cliente = posizioni_clienti[cliente]
-        costo_totale += calcola_distanza_manhattan(posizione_corrente, posizione_cliente)
-        posizione_corrente = posizione_cliente
-    
-    # Costo per tornare alla base
-    costo_totale += calcola_distanza_manhattan(posizione_corrente, posizione_base)
-    
-    return costo_totale
-
-
-def trova_cliente_piu_vicino(posizione_riferimento, lista_clienti, posizioni_clienti):
-    """
-    Trova il cliente più vicino a una posizione di riferimento.
-    
-    Args:
-        posizione_riferimento (tuple): Posizione di riferimento
-        lista_clienti (list): Lista dei clienti da considerare
-        posizioni_clienti (dict): Posizioni dei clienti
-    
-    Returns:
-        str: Etichetta del cliente più vicino, None se lista vuota
-    """
-    if not lista_clienti:
+def trova_cliente_vicino(pos_ref, clienti, posizioni):
+    # Trova cliente più vicino a posizione di riferimento
+    if not clienti:
         return None
     
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#ATTENZIONE, SEMPLIFICARE FUNZIONE DENTRO FUNZIONE
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    return min(
-        lista_clienti,
-        key=lambda c: calcola_distanza_manhattan(posizione_riferimento, posizioni_clienti[c])
-    )
+    cliente_vicino = None
+    dist_min = float('inf')
+    
+    for cliente in clienti:
+        dist = distanza_manhattan(pos_ref, posizioni[cliente])
+        if dist < dist_min:
+            dist_min = dist
+            cliente_vicino = cliente
+    
+    return cliente_vicino

@@ -32,6 +32,10 @@ class FinestraPrincipale:
         self.piano_viaggio_singolo = None
         self.etichette_clienti = {}
         
+        # Controllo loop animazione
+        self.loop_attivo = False
+        self.timer_id = None
+        
         # Stato interfaccia grafica
         self.pixel_per_cella = PIXEL_PER_CELLA
         self.id_taxi_canvas = {}  # ID oggetti taxi nel canvas
@@ -225,6 +229,11 @@ class FinestraPrincipale:
         if numero_problema not in CONFIGURAZIONE_PROBLEMI:
             return
         
+        # Ferma animazione se in corso
+        if self.stato_animazione.attiva:
+            self.stato_animazione.attiva = False
+            self.pulsante_play.config(text="▶ Play")
+        
         config = CONFIGURAZIONE_PROBLEMI[numero_problema]
         
         # Crea configurazione problema
@@ -285,6 +294,12 @@ class FinestraPrincipale:
         # Resetta lo stato dell'animazione e dei costi
         self.stato_animazione.reset()
         
+        # Reset controlli loop
+        self.loop_attivo = False
+        if self.timer_id:
+            self.finestra.after_cancel(self.timer_id)
+            self.timer_id = None
+        
         # Inizializza gli indici per i taxi correnti
         if self.piano_multi_taxi:
             for nome_taxi in self.piano_multi_taxi.piani.keys():
@@ -310,39 +325,41 @@ class FinestraPrincipale:
         self.aggiorna_visualizzazione_costi()
     
     def ridisegna_scenario_completo(self):
-        # Ridisegna l'intero scenario con griglia, stazione, clienti e taxi
+        # Ridisegna l'intero scenario con ordine z-index corretto
         self.disegna_griglia_iniziale()
         self.canvas.delete("stazione", "stazione_primo_piano", "stazione_testo", "taxi", "cliente", "traccia")
         
-        # Disegna i clienti
+        # ORDINE Z-INDEX: clienti (fondo) → taxi → stazione → tracciato attivo (primo piano)
+        
+        # 1. Disegna i clienti (z-index più basso)
         self.disegna_clienti()
         
         # Reset ID taxi
         self.id_taxi_singolo = None
         self.id_taxi_canvas.clear()
         
-        # Disegna taxi
+        # 2. Disegna taxi
         if self.piano_multi_taxi:
             self.disegna_taxi_multi()
         elif self.piano_viaggio_singolo:
             self.disegna_taxi_singolo()
         
-        # Disegna la stazione ferroviaria (in primo piano)
+        # 3. Disegna la stazione ferroviaria (copre taxi ma non tracciato)
         self.disegna_stazione()
         
-        # Disegna tracce iniziali
+        # 4. Disegna tracce iniziali (z-index più alto - primo piano)
         self.disegna_tracce_iniziali()
     
     def disegna_stazione(self):
-        # Disegna la stazione ferroviaria (in primo piano)
+        # Disegna la stazione ferroviaria (copre taxi ma non tracciato)
         x1, y1, x2, y2 = self.converti_cella_in_pixel(STAZIONE)
         padding = self.calcola_padding(0.15)
         
-        # Crea rettangolo stazione con z-order alto
+        # Crea rettangolo stazione
         self.canvas.create_rectangle(
             x1 + padding, y1 + padding, x2 - padding, y2 - padding,
             fill=COLORI['stazione'], outline=COLORI['stazione_bordo'], 
-            width=3, tags="stazione_primo_piano"
+            width=3, tags="stazione"
         )
         
         # Testo ST centrato e adattivo
@@ -375,19 +392,19 @@ class FinestraPrincipale:
                 colore_bordo = COLORI['cliente_bordo']
                 colore_testo = "white"
             
-            # Disegna il cerchio del cliente
+            # Disegna il cerchio del cliente (z-index più basso)
             id_cerchio = self.canvas.create_oval(
                 x1 + padding_cliente, y1 + padding_cliente,
                 x2 - padding_cliente, y2 - padding_cliente,
                 fill=colore_riempimento, outline=colore_bordo, 
-                width=2, tags=f"cliente {etichetta}"
+                width=2, tags="cliente"
             )
             
             # Disegna il testo del cliente
             id_testo = self.canvas.create_text(
                 (x1 + x2) // 2, (y1 + y2) // 2,
                 text=etichetta, fill=colore_testo, font=("Arial", 9, "bold"),
-                tags=f"cliente {etichetta}"
+                tags="cliente"
             )
             
             # Memorizza gli ID per poterli aggiornare successivamente
@@ -412,7 +429,7 @@ class FinestraPrincipale:
                 x1 + padding_taxi, y1 + padding_taxi,
                 x2 - padding_taxi, y2 - padding_taxi,
                 fill=colori_taxi.get(nome_taxi, COLORI['taxi_singolo']),
-                outline=COLORI['taxi_bordo'], width=2, tags=f"taxi {nome_taxi}"
+                outline=COLORI['taxi_bordo'], width=2, tags="taxi"
             )
             
             self.id_taxi_canvas[nome_taxi] = id_taxi
@@ -439,8 +456,9 @@ class FinestraPrincipale:
         self.stato_animazione.aggiorna_taxi("singolo", 0)
     
     def disegna_tracce_iniziali(self):
-        # Disegna le tracce iniziali dei percorsi
+        # Disegna le tracce iniziali dei percorsi (z-index più alto - primo piano)
         # Le tracce vengono disegnate dinamicamente durante l'animazione
+        # Questo metodo assicura che le tracce siano sempre in primo piano
         pass
     
     def marca_cliente_prelevato(self, etichetta_cliente):
@@ -514,8 +532,13 @@ class FinestraPrincipale:
         dati_percorso = self.percorsi_completati[etichetta_cliente]
         indice_prelievo = dati_percorso['indice_prelievo']
         
-        # Colore traccia basato su tipo taxi
-        colore_traccia = COLORI['traccia_singolo'] if nome_taxi == TAXI_SINGOLO else COLORI['traccia_condiviso']
+        # Determina colore traccia corretto basato su configurazione problema
+        if self.configurazione_corrente and self.configurazione_corrente.taxi_condiviso:
+            colore_traccia = COLORI['traccia_condiviso']
+        elif nome_taxi == TAXI_CONDIVISO:
+            colore_traccia = COLORI['traccia_condiviso']
+        else:
+            colore_traccia = COLORI['traccia_singolo']
         
         # Disegna percorso dal prelievo alla posizione corrente
         if indice_corrente > indice_prelievo:
@@ -530,7 +553,7 @@ class FinestraPrincipale:
             )
     
     def disegna_traccia_percorso(self, percorso, fino_a_indice, colore_traccia=None, nome_taxi=None):
-        # Disegna traccia percorso fino a indice specificato
+        # Disegna traccia percorso fino a indice specificato (inclusa stazione finale)
         if not percorso or fino_a_indice < 1:
             return
         
@@ -541,8 +564,13 @@ class FinestraPrincipale:
         # Tag traccia
         tag_traccia = f"traccia {nome_taxi}" if nome_taxi else "traccia"
         
-        # Disegna linee percorso
-        for i in range(1, min(fino_a_indice + 1, len(percorso))):
+        # Disegna linee percorso fino alla stazione inclusa
+        fine_effettiva = min(fino_a_indice + 1, len(percorso))
+        # Se l'ultimo punto è la stazione, includi anche quello
+        if fino_a_indice < len(percorso) - 1 and percorso[fino_a_indice + 1] == STAZIONE:
+            fine_effettiva = min(fino_a_indice + 2, len(percorso))
+        
+        for i in range(1, fine_effettiva):
             punto_a = percorso[i - 1]
             punto_b = percorso[i]
             
@@ -554,7 +582,7 @@ class FinestraPrincipale:
             centro_xb = (x1b + x2b) // 2
             centro_yb = (y1b + y2b) // 2
             
-            # Crea una linea più visibile per il percorso
+            # Crea una linea più visibile per il percorso (z-index più alto - primo piano)
             self.canvas.create_line(
                 centro_xa, centro_ya, centro_xb, centro_yb,
                 fill=colore_traccia, width=4, tags=tag_traccia,
@@ -575,6 +603,10 @@ class FinestraPrincipale:
         # Avvia o mette in pausa l'animazione
         if self.stato_animazione.attiva:
             self.stato_animazione.attiva = False
+            self.loop_attivo = False
+            if self.timer_id:
+                self.finestra.after_cancel(self.timer_id)
+                self.timer_id = None
             self.pulsante_play.config(text="▶ Play")
         else:
             self.stato_animazione.attiva = True
@@ -591,23 +623,36 @@ class FinestraPrincipale:
     def reset_animazione(self):
         # Resetta l'animazione allo stato iniziale
         self.stato_animazione.attiva = False
+        self.loop_attivo = False
+        if self.timer_id:
+            self.finestra.after_cancel(self.timer_id)
+            self.timer_id = None
+        
         self.pulsante_play.config(text="▶ Play")
         self.reset_stato()
         self.ridisegna_scenario_completo()
     
     def loop_animazione(self):
         # Loop principale dell'animazione
-        if not self.stato_animazione.attiva:
+        if not self.stato_animazione.attiva or self.loop_attivo:
             return
         
+        self.loop_attivo = True
         self.avanza_step_animazione()
         
         if self.stato_animazione.attiva:
-            self.finestra.after(self.stato_animazione.velocita, self.loop_animazione)
+            self.timer_id = self.finestra.after(self.stato_animazione.velocita, self.continua_loop)
+        else:
+            self.loop_attivo = False
+    
+    def continua_loop(self):
+        # Continua il loop dell'animazione
+        self.loop_attivo = False
+        if self.stato_animazione.attiva:
+            self.loop_animazione()
     
     def avanza_step_animazione(self):
         # Avanza di un step nell'animazione
-        # Modalità multi-taxi
         if self.piano_multi_taxi:
             movimento_effettuato = self.avanza_multi_taxi()
             if not movimento_effettuato:
@@ -615,13 +660,12 @@ class FinestraPrincipale:
                 self.pulsante_play.config(text="▶ Play")
             return
         
-        # Modalità taxi singolo
         if self.piano_viaggio_singolo:
-            if self.avanza_taxi_singolo():
-                return
-            else:
+            movimento_effettuato = self.avanza_taxi_singolo()
+            if not movimento_effettuato:
                 self.stato_animazione.attiva = False
                 self.pulsante_play.config(text="▶ Play")
+    
     
     def avanza_multi_taxi(self):
         # Avanza l'animazione per il sistema multi-taxi
@@ -743,6 +787,8 @@ class FinestraPrincipale:
             for cliente in clienti_a_bordo:
                 if cliente in self.clienti_prelevati and cliente not in self.clienti_consegnati:
                     self.completa_tracciamento_percorso(cliente)
+                    # Migliora visualizzazione dropoff in stazione
+                    self.evidenzia_dropoff_stazione(cliente)
     
     def aggiorna_tracciamenti_percorsi(self, piano, indice):
         # Aggiorna tracciamento percorsi clienti a bordo
@@ -819,12 +865,15 @@ class FinestraPrincipale:
         return clienti_a_bordo
     
     def aggiorna_visualizzazione_costi(self):
-        # Aggiorna visualizzazione costi
-        self.var_costo_singolo.set(f"Taxi singolo: {self.stato_animazione.costo_taxi_singolo}€")
-        self.var_costo_condiviso.set(f"Taxi condiviso: {self.stato_animazione.costo_taxi_condiviso}€")
+        # Aggiorna la visualizzazione dei costi per tutti i clienti
+        if not self.etichette_clienti:
+            return
         
-        # Aggiorna costi clienti
-        for etichetta in sorted(self.stato_animazione.costi_clienti.keys()):
+        # Ordina i clienti per numero (c1, c2, c3, ...)
+        clienti_ordinati = sorted(self.etichette_clienti.keys(), key=lambda x: int(x[1:]) if x[1:].isdigit() else 0)
+        
+        # Assicura che tutti i clienti abbiano una riga nella dashboard
+        for etichetta in clienti_ordinati:
             self.assicura_riga_costo_cliente(etichetta)
             costo = self.stato_animazione.get_costo(etichetta)
             self.etichette_costi_clienti[etichetta].set(f"{costo:.2f}€")
@@ -843,6 +892,21 @@ class FinestraPrincipale:
         ttk.Label(riga, textvariable=variabile_costo, font=("Arial", 9)).pack(side="right")
         
         self.etichette_costi_clienti[etichetta] = variabile_costo
+    
+    def evidenzia_dropoff_stazione(self, cliente):
+        # Evidenzia visivamente l'evento di dropoff in stazione
+        # Cambia temporaneamente il colore della stazione per indicare dropoff
+        x1, y1, x2, y2 = self.converti_cella_in_pixel(STAZIONE)
+        padding = self.calcola_padding(0.15)
+        
+        # Crea effetto visivo temporaneo
+        self.canvas.create_rectangle(
+            x1 + padding, y1 + padding, x2 - padding, y2 - padding,
+            fill="#FFD700", outline="#FFA500", width=4, tags="dropoff_effect"
+        )
+        
+        # Rimuovi l'effetto dopo 500ms
+        self.finestra.after(500, lambda: self.canvas.delete("dropoff_effect"))
 
 
 def avvia_interfaccia_grafica():

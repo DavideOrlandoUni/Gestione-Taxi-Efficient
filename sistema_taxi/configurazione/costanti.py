@@ -22,7 +22,7 @@ COSTO_PER_STEP = 1.0
 RAGGIO_ACCOPPIAMENTO_DEFAULT = 2
 
 # Interfaccia grafica
-VELOCITA_ANIMAZIONE_DEFAULT = 200
+VELOCITA_ANIMAZIONE_DEFAULT = 125
 
 COLORI = {
     'stazione': '#2ecc71',
@@ -78,10 +78,10 @@ CONFIGURAZIONE_PROBLEMI = {
     },
     2: {
         'nome': 'Problema 2', 
-        'descrizione': 'Taxi condiviso',
-        'taxi_condiviso': True,
-        'colore_taxi': COLORI['taxi_condiviso'],
-        'usa_multi_taxi': False
+        'descrizione': 'Multi-taxi adattivo',
+        'taxi_condiviso': False,
+        'colore_taxi': COLORI['taxi_singolo'],
+        'usa_multi_taxi': True
     },
     3: {
         'nome': 'Problema 3',

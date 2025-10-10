@@ -39,7 +39,9 @@ class FinestraPrincipale:
         self.id_clienti_canvas = {}  # ID oggetti clienti nel canvas
         self.clienti_prelevati = set()  # Set dei clienti già prelevati
         self.percorsi_completati = {}  # Percorsi completati per ogni cliente {cliente: [(x1,y1), (x2,y2), ...]}
-        self.clienti_consegnati = set()  # Set dei clienti già consegnati alla stazione
+        self.clienti_consegnati = set()  # Set dei clienti consegnati
+        self.pulsanti_problemi = {}  # Riferimenti ai pulsanti dei problemi
+        self.problema_attivo = None  # Numero del problema attualmente attivo alla stazione
         
         # Configurazione problema corrente
         self.configurazione_corrente = None
@@ -54,8 +56,8 @@ class FinestraPrincipale:
         self.configura_layout()
         self.disegna_griglia_iniziale()
         
-        # Carica il primo problema di default
-        self.carica_problema(1)
+        # Carica il primo problema dopo che l'interfaccia è completamente renderizzata
+        self.finestra.after(100, lambda: self.carica_problema(1))
     
     def crea_interfaccia(self):
         # Crea tutti i componenti dell'interfaccia grafica
@@ -90,6 +92,8 @@ class FinestraPrincipale:
             )
             pulsante.config(command=self.crea_comando_carica_problema(numero))
             pulsante.pack(fill="x", pady=2)
+            # Salva riferimento per aggiornamenti futuri
+            self.pulsanti_problemi[numero] = pulsante
         
         ttk.Separator(self.pannello_controlli, orient="horizontal").pack(fill="x", pady=8)
     
@@ -98,6 +102,18 @@ class FinestraPrincipale:
         def comando():
             self.carica_problema(numero)
         return comando
+    
+    def aggiorna_pulsanti_problemi(self, numero_attivo):
+        # Aggiorna l'aspetto dei pulsanti problemi per evidenziare quello attivo
+        self.problema_attivo = numero_attivo
+        
+        for numero, pulsante in self.pulsanti_problemi.items():
+            if numero == numero_attivo:
+                # Pulsante attivo: stile evidenziato
+                pulsante.config(style="Accent.TButton")
+            else:
+                # Pulsanti inattivi: stile normale
+                pulsante.config(style="TButton")
     
     def crea_controlli_animazione(self):
         # Crea i controlli per l'animazione
@@ -223,6 +239,7 @@ class FinestraPrincipale:
         )
         
         self.carica_da_configurazione(self.configurazione_corrente)
+        self.aggiorna_pulsanti_problemi(numero_problema)
     
     def carica_da_configurazione(self, configurazione):
         # Carica problema da configurazione
@@ -258,6 +275,10 @@ class FinestraPrincipale:
         self.finestra.title(f"Sistema Taxi Intelligenti - {configurazione.nome}")
         self.reset_stato()
         self.ridisegna_scenario_completo()
+        
+        # Forza aggiornamento completo dell'interfaccia
+        self.finestra.update_idletasks()
+        self.finestra.update()
         
     
     def reset_stato(self):

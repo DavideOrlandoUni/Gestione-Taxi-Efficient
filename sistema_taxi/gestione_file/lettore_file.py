@@ -92,6 +92,3 @@ def estrai_prima_mappatura_pickup(lista_azioni):
                 mappa_pickup[passeggero_upper] = location_lower
     
     return mappa_pickup
-
-
-# Funzioni di validazione rimosse - non utilizzate nel sistema
